@@ -4,6 +4,8 @@ var parseString = require('xml2js').parseString;
 
 var g_verbose = 1;
 
+var display_bus = true;
+
 var global_connect = { };
 
 var global_data = { n: 0,
@@ -64,7 +66,7 @@ for (var rbo in global_data.path) {
         };
 
       })(rbo), global_data.interval[rbo] );
-  }else{
+  }else if(display_bus){
     setInterval(
       (function(RBO) {
 

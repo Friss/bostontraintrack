@@ -191,14 +191,6 @@ var g_stops =  {
   "place-wtcst" : { "id" : "place-wtcst", "name" : "World Trade Center Station", "lat" : "42.34863", "lon" : "-71.04246", "code" : "b" }
 };
 
-/*
-        "place-davis" :
-          { stop_id : "place-davis", name : "Davis Station", latitude : 42.39674, longitude: -71.121815 },
-        "place-portr" :
-          { stop_id : "place-portr", name : "Porter Square Station", latitude : 42.3884, longitude: -71.119149 }
-      };
-*/
-
 //--------------------------
 // client socket maintenance
 
@@ -218,10 +210,6 @@ function printdata(data, color) {
   }
 }
 
-function handlePopup(tripid) {
-  console.log("handlePopup>>", tripid);
-}
-
 function drawMarker(tripid, color) {
   headingLookup = [ "0", "45", "90", "135", "180", "225", "270", "315" ];
 
@@ -231,7 +219,7 @@ function drawMarker(tripid, color) {
   //
   if ( "osm_marker" in dat ) {
     var m = dat["osm_marker"];
-    g_marker_layer.removeMarker(m);
+    g_marker_layer.removeFeatures(m);
     delete g_marker[tripid].osm_marker;
     delete g_marker[tripid].icon;
     delete g_marker[tripid].size;
@@ -257,29 +245,31 @@ function drawMarker(tripid, color) {
     bus_h *= scale_factor;
   }
 
-
-  //var size = new OpenLayers.Size(36,45);
-  var size = new OpenLayers.Size(bus_w,bus_h);
-  var offset = new OpenLayers.Pixel(-(size.w/2), -size.h);
-
   var icon ;
   if ( (color == "red") || (color == "blue") || (color == "orange") ) {
-
     iheading = Math.floor( (parseInt( dat.Heading ) + 23) / 45 );
     if (iheading > 7) { iheading = 0; }
-    icon = new OpenLayers.Icon("img/metro_" + color + "_" + headingLookup[iheading] + "_fade.png", size, offset);
+
+    icon = "img/metro_" + color + "_" + headingLookup[iheading] + "_fade.png";
   } else {
-    icon = new OpenLayers.Icon("img/" + color + ".png", size, offset);
+
+    icon = "img/" + color + ".png";
   }
-  dat["osm_marker"] = new OpenLayers.Marker( lonlat, icon );
-  dat["osm_marker"].events.register('mousedown',
-                                    dat["osm_marker"],
-                                    (function(xx) { return function() { handlePopup(xx); }; })(tripid) );
+
   dat["icon"] = icon;
   dat["size"] = size;
   dat["offset"] = offset;
 
-  g_marker_layer.addMarker( dat["osm_marker"] );
+  dat["osm_marker"] = new OpenLayers.Feature.Vector(
+                new OpenLayers.Geometry.Point( dat.Long, dat.Lat  ).transform(new OpenLayers.Projection("EPSG:4326"), g_map.getProjectionObject()),
+                {
+                    foo : "bar",
+                    Color: dat.Color,
+                },
+                {externalGraphic: icon, graphicHeight: bus_h, graphicWidth: bus_w, graphicXOffset:-(size.w/2), graphicYOffset:-size.h  }
+        );
+
+  g_marker_layer.addFeatures( dat["osm_marker"] );
 
 }
 
@@ -347,24 +337,11 @@ function updateMarker(data, color) {
     if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
       if (g_marker[ tripid ].Dirty == 0) {
         console.log("REMOVING", tripid)
-        g_marker_layer.removeMarker( g_marker[tripid]["osm_marker"] );
+        g_marker_layer.removeFeatures( g_marker[tripid]["osm_marker"] );
         delete g_marker[ tripid ];
       }
     }
   }
-
-  /*
-  for (var x in trips) {
-    if ("Position" in trips[x]) {
-      if (g_marker[ tripid ].Dirty == 0) {
-        console.log("REMOVING")
-        g_marker_layer.removeMarker( trips[x]["osm_marker"] );
-
-        delete g_marker[ tripid ];
-      }
-    }
-  }
-  */
 
   g_marker_layer.redraw();
 }
@@ -372,14 +349,6 @@ function updateMarker(data, color) {
 function updateBus(data, color) {
   var dirty = 0;
   var trips = data[color].body.vehicle;
-
-  // Mark all entries for deletion
-  //
-  for (var tripid in g_marker) {
-    if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
-      g_marker[tripid].Dirty = 0;
-    }
-  }
 
   // Create new entries if they don't exist
   //
@@ -418,37 +387,7 @@ function updateBus(data, color) {
 
       drawMarker( tripid, color );
     }
-
-
-    dirty=1;
-
-
   }
-
-  // Delete stale entries
-  //
-  for (var tripid in g_marker) {
-    if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
-      if (g_marker[ tripid ].Dirty == 0) {
-        console.log("REMOVING", tripid)
-        g_marker_layer.removeMarker( g_marker[tripid]["osm_marker"] );
-        delete g_marker[ tripid ];
-      }
-    }
-  }
-
-  /*
-  for (var x in trips) {
-    if ("Position" in trips[x]) {
-      if (g_marker[ tripid ].Dirty == 0) {
-        console.log("REMOVING")
-        g_marker_layer.removeMarker( trips[x]["osm_marker"] );
-
-        delete g_marker[ tripid ];
-      }
-    }
-  }
-  */
 
   g_marker_layer.redraw();
 }
@@ -529,14 +468,13 @@ function mapEvent(ev) {
     }
     else
     {
-
       for (var bus_id in g_marker) {
         drawMarker( bus_id, g_marker[bus_id].Color );
       }
+
       drawStops();
 
       return;
-
 
       var count=0;
       for (var track_id in g_marker) {
@@ -554,25 +492,11 @@ function mapEvent(ev) {
 
         g_marker[track_id].size = sz;
         g_marker[track_id].icon = ico;
-
-        //console.log(ico);
       }
-
-
     }
-
   }
-  else if (ev.type == "move" ) {
-    //console.log("move!");
-  }
-  else if (ev.type == "moveend" ) {
-    //console.log("moveend!");
-  }
-  else if (ev.type == "movestart" ) {
-    //console.log("movestart!");
-  }
-
 }
+
 
 function drawStops( force ) {
 
@@ -652,7 +576,7 @@ function initMap() {
                                            ["http://a.tile.thunderforest.com/transport/${z}/${x}/${y}.png",
                                             "http://b.tile.thunderforest.com/transport/${z}/${x}/${y}.png",
                                             "http://c.tile.thunderforest.com/transport/${z}/${x}/${y}.png"],
-                                           { displayOutsideMaxExtent: true, 
+                                           { displayOutsideMaxExtent: true,
                                              transitionEffect: 'resize',
                                              attribution : transportattrib });
 
@@ -667,44 +591,42 @@ function initMap() {
 
   //var zoom=14;
 
-  g_marker_layer = new OpenLayers.Layer.Markers( "Metro" );
+  g_marker_layer = new OpenLayers.Layer.Vector( "Metro",{
+        eventListeners:{
+            'featureselected':function(evt){
+                var feature = evt.feature;
+                var popup = new OpenLayers.Popup.FramedCloud("popup",
+                    OpenLayers.LonLat.fromString(feature.geometry.toShortString()),
+                    null,
+                    "<div style='font-size:.8em'>Feature: " + feature.attributes.Color +"<br>Foo: " + feature.attributes.foo+"</div>",
+                    null,
+                    true
+                );
+                feature.popup = popup;
+                g_map.addPopup(popup);
+            },
+            'featureunselected':function(evt){
+                var feature = evt.feature;
+                g_map.removePopup(feature.popup);
+                feature.popup.destroy();
+                feature.popup = null;
+            }
+        }
+    });
+
+
+    //create the select feature control
+    var selector = new OpenLayers.Control.SelectFeature(g_marker_layer,{
+        hover:true,
+        autoActivate:true
+    });
+
+
+    g_map.addControl(selector);
   g_map.addLayer(g_marker_layer);
   g_map.setLayerIndex(g_marker_layer, 99);
 
   g_stop_layer = new OpenLayers.Layer.Markers( "Stops" );
-
-  /*
-  for (var ind in g_stops) {
-    var st = g_stops[ind];
-    //var lonlat =  new OpenLayers.LonLat( st.longitude, st.latitude )
-    var lonlat =  new OpenLayers.LonLat( st.lon, st.lat)
-      .transform(
-        new OpenLayers.Projection("EPSG:4326"), // transform from WGS 1984
-        g_map.getProjectionObject() // to Spherical Mercator Projection
-      );
-
-
-    //var size = new OpenLayers.Size(32,37);
-    var size = new OpenLayers.Size(15,18);
-    //var offset = new OpenLayers.Pixel(-(size.w/2), -size.h);
-    var offset = new OpenLayers.Pixel( -(size.w/2), -(size.h/2) );
-
-    code = st.code;
-    var icon = new OpenLayers.Icon("img/metro_T_fade.png", size, offset);
-    if (/r/.test( code )) {
-      icon = new OpenLayers.Icon("img/metro_T_red_fade.png", size, offset);
-    } else if (/o/.test(code)) {
-      icon = new OpenLayers.Icon("img/metro_T_orange_fade.png", size, offset);
-    } else if (/b/.test(code)) {
-      icon = new OpenLayers.Icon("img/metro_T_blue_fade.png", size, offset);
-    }
-
-    var stopMarker = new OpenLayers.Marker( lonlat, icon );
-
-    g_stop_layer.addMarker( stopMarker );
-
-  }
-  */
 
   drawStops( true );
   g_map.addLayer(g_stop_layer);
@@ -716,6 +638,7 @@ function initMap() {
 
 
 $(document).ready( function() {
+  OpenLayers.ImgPath = "img/";
   initMap();
   setupRTStreams();
 });
