@@ -269,7 +269,7 @@ function drawMarker(tripid, color) {
     if (iheading > 7) { iheading = 0; }
     icon = new OpenLayers.Icon("img/metro_" + color + "_" + headingLookup[iheading] + "_fade.png", size, offset);
   } else {
-    icon = new OpenLayers.Icon("img/underground_" + color + ".png", size, offset);
+    icon = new OpenLayers.Icon("img/" + color + ".png", size, offset);
   }
   dat["osm_marker"] = new OpenLayers.Marker( lonlat, icon );
   dat["osm_marker"].events.register('mousedown',
@@ -289,7 +289,7 @@ function updateMarker(data, color) {
   var trips = data[color].TripList.Trips;
 
   // Mark all entries for deletion
-  // 
+  //
   for (var tripid in g_marker) {
     if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
       g_marker[tripid].Dirty = 0;
@@ -320,6 +320,7 @@ function updateMarker(data, color) {
       g_marker[ tripid ].Timestamp = trips[x].Position.Timestamp;
       g_marker[ tripid ].Heading = trips[x].Position.Heading;
       g_marker[ tripid ].Dirty = 1;
+      g_marker[ tripid ].Color = color;
 
       lat = trips[x].Position.Lat;
       lon = trips[x].Position.Long;
@@ -368,6 +369,90 @@ function updateMarker(data, color) {
   g_marker_layer.redraw();
 }
 
+function updateBus(data, color) {
+  var dirty = 0;
+  var trips = data[color].body.vehicle;
+
+  // Mark all entries for deletion
+  //
+  for (var tripid in g_marker) {
+    if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
+      g_marker[tripid].Dirty = 0;
+    }
+  }
+
+  // Create new entries if they don't exist
+  //
+  for (var x in trips) {
+    var tripid = trips[x]["$"].id;
+
+    if ( !( tripid in g_marker )) {
+      //console.log("allocating");
+      g_marker[ tripid ] = { Lat : 0, Long : 0, Color : color };
+    }
+    //g_marker[ tripid ].Dirty = 0;
+
+  }
+
+  // Draw new entries and unmark them for deletion if we're drawing
+  // them.
+  //
+  for (var x in trips) {
+
+    var tripid = trips[x]["$"].id;
+
+    g_marker[ tripid ].Timestamp = trips[x]["$"].secsSinceReport;
+    g_marker[ tripid ].Heading = trips[x]["$"].heading;
+    g_marker[ tripid ].Dirty = 1;
+    g_marker[ tripid ].Color = color;
+
+    lat = trips[x]["$"].lat;
+    lon = trips[x]["$"].lon;
+
+
+    if ( ( Math.abs(lat - g_marker[tripid].Lat) > 0.001 ) ||
+         ( Math.abs(lon - g_marker[tripid].Long) > 0.001 ) ) {
+
+      g_marker[ tripid ].Lat     = trips[x]["$"].lat;
+      g_marker[ tripid ].Long    = trips[x]["$"].lon;
+
+      drawMarker( tripid, color );
+    }
+
+
+    dirty=1;
+
+
+  }
+
+  // Delete stale entries
+  //
+  for (var tripid in g_marker) {
+    if (("Color" in g_marker[tripid]) && (g_marker[tripid].Color== color)) {
+      if (g_marker[ tripid ].Dirty == 0) {
+        console.log("REMOVING", tripid)
+        g_marker_layer.removeMarker( g_marker[tripid]["osm_marker"] );
+        delete g_marker[ tripid ];
+      }
+    }
+  }
+
+  /*
+  for (var x in trips) {
+    if ("Position" in trips[x]) {
+      if (g_marker[ tripid ].Dirty == 0) {
+        console.log("REMOVING")
+        g_marker_layer.removeMarker( trips[x]["osm_marker"] );
+
+        delete g_marker[ tripid ];
+      }
+    }
+  }
+  */
+
+  g_marker_layer.redraw();
+}
+
 function rtupdate(data) {
 
   //if (g_verbose) { console.log("++"); }
@@ -375,21 +460,22 @@ function rtupdate(data) {
   if ("red" in data)    { updateMarker(data, "red"); }
   if ("blue" in data)   { updateMarker(data, "blue"); }
   if ("orange" in data) { updateMarker(data, "orange"); }
+  if ("bus" in data)    { updateBus(data, "bus"); }
 
   // no green :(
   if ("green" in data) { updateMarker(data, "green"); }
 
 }
 
-var g_SERVER_ADDR = "bostontraintrack.com";
+var g_SERVER_ADDR = "localhost";
 
 function setupRTStreams() {
   //g_socket = io('http://localhost:8181');
   g_socket = io('http://' + g_SERVER_ADDR + ':8181');
   g_socket.on('connect', function() {
     if (g_verbose) { console.log("connected!"); }
-    g_socket.on('update', rtupdate );
-    g_socket.on('disconnect', function() { console.log("disconnected"); });
+  g_socket.on('update', rtupdate );
+  g_socket.on('disconnect', function() { console.log("disconnected"); });
   });
 }
 
@@ -571,7 +657,7 @@ function initMap() {
   g_map.addLayer(transport);
 
   //var lonLat = new OpenLayers.LonLat( -71.0636, 42.3581  )
-  var lonLat = new OpenLayers.LonLat( -71.1136, 42.3981  )
+  var lonLat = new OpenLayers.LonLat( -71.0584536, 42.3583183  )
         .transform(
           new OpenLayers.Projection("EPSG:4326"),
           g_map.getProjectionObject()
