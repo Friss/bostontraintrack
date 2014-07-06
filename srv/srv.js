@@ -105,7 +105,7 @@ for (var rbo in global_data.path) {
                     parseString(body, function (err, result) {
                         global_data[RBO] = result;
 
-                        console.log("Buses: " + result.body.vehicle.length
+                        console.log("Buses: " + result.body.vehicle.length);
 
                         });
                     });
